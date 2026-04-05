@@ -10,10 +10,7 @@ COPY pyproject.toml uv.lock /code/
 
 RUN pip install uv 
 
-RUN uv install 
 
-
-COPY ./app /code/app
-
-
+RUN uv sync --no-dev
+COPY . /code/
 CMD [ "uv" , "run" , "fastapi", "dev"]

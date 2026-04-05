@@ -1,0 +1,80 @@
+name: Docker CI/CD Testing
+
+on:
+  push:
+    branches: [ dockerimplementation/v1 ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ['3.12']
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+      
+      - name: Install dependencies
+        run: |
+          uv pip install -e .
+          uv pip install pytest pytest-cov pylint black isort
+      
+      - name: Code formatting check (black)
+        run: black --check .
+      
+      - name: Import sorting check (isort)
+        run: isort --check-only .
+      
+      - name: Linting (pylint)
+        run: pylint main.py
+      
+      - name: Run tests
+        run: pytest -v --cov=. --cov-report=xml
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: true
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+      
+      - name: Install dependencies
+        run: uv pip install -e .
+      
+      - name: Verify app starts correctly
+        run: |
+          timeout 10 python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 3
+          curl -f http://localhost:8000/ || exit 1
+        continue-on-error: false
+      
+      - name: Build notification
+        if: success()
+        run: echo "✅ FastAPI application build successful"
